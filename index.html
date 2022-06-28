@@ -1,0 +1,210 @@
+<html>
+<head>
+	<title>Pi</title>
+	<style>
+	* { margin: 0; padding: 0;}
+
+	body, html { height:100%; }
+
+	#canvas {
+		position:absolute;
+		width:100%;
+		height:100%;
+	}
+	</style>
+</head>
+<body>
+<canvas id="canvas" width="512" height="512" style="margin: auto;"></canvas>
+<script>
+/**
+
+   Bailey-Borwein-Plouffe digit-extraction algorithm for pi 
+    <https://en.wikipedia.org/wiki/Bailey%E2%80%93Borwein%E2%80%93Plouffe_formula#BBP_digit-extraction_algorithm_for_.CF.80>
+*/
+function run(n) {
+    const modularExponentiation = function(base, exponent, modulus) {
+        if (modulus === 1) {
+            return 0
+        }
+        let result = 1
+        base = base % modulus
+        while (exponent > 0) {
+            if (exponent % 2 === 1) {
+                result = (result * base) % modulus
+            }
+            exponent = exponent >> 1
+            base = (base * base) % modulus
+        }
+        return result
+    }
+
+    const partial = function(d, c) {
+        let sum = 0;
+
+        // Left sum
+        let k;
+        for (k = 0; k <= d - 1; k++) {
+            sum += modularExponentiation(16, d - 1 - k, 8 * k + c) / (8 * k + c)
+        }
+
+        // Right sum. This converges fast...
+        let prev = undefined;
+        for(k = d; sum !== prev; k++) {
+            prev = sum;
+            sum += Math.pow(16, d - 1 - k) / (8 * k + c);
+        }
+
+        return sum;
+    };
+
+    /**
+        JavaScript's modulus operator gives the wrong
+        result for negative numbers. E.g. `-2.9 % 1`
+        returns -0.9, the correct result is 0.1.
+    */
+    const mod1 = function(x) {
+        return x < 0 ? 1 - (-x % 1) : x % 1;
+    };
+
+    let s = 0;
+    s +=  4 * partial(n, 1);
+    s += -2 * partial(n, 4);
+    s += -1 * partial(n, 5);
+    s += -1 * partial(n, 6);
+
+    s = mod1(s);
+    return Math.floor(s * 16);
+}
+
+// Pi in hex is 3.243f6a8885a308d313198a2e037073...
+/*
+let str = ''
+for (let i = 1; i < 8366; i++) {
+    str += run(i).toString(2)
+}
+console.log(str)
+*/
+
+const canvas = document.getElementById('canvas')
+canvas.width = document.documentElement.clientWidth
+canvas.height = document.documentElement.clientHeight
+
+const ctx = canvas.getContext('2d')
+const canvasWidth = canvas.width
+const canvasHeight = canvas.height
+ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+const id = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
+const pixels = id.data
+
+let i = 1
+let x = canvasWidth >> 1
+let y = canvasHeight >> 1
+let r = 255
+let g = 0
+let b = 0
+let rgb = 0
+function animation () {
+	const nextValue = run(i)
+	
+	for (let j = 1; j >= 0; j--) {
+		const dir = nextValue & (3 << j)
+		
+		switch (dir) {
+			case 0:
+				x++
+				break
+			case 1:
+				y++
+				break
+			case 2:
+				x--
+				break
+			case 3:
+				y--
+				break
+		}
+		
+		const off = (y * id.width + x) * 4
+		
+		switch (rgb) {
+			case 0:
+				g++
+				if (g === 255) {
+					rgb++
+				}
+				break
+			case 1:
+				r--
+				if (r === 0) {
+					rgb++
+				}
+				break
+			case 2:
+				b++
+				if (b === 255) {
+					rgb++
+				}
+				break
+			case 3:
+				g--
+				if (g === 0) {
+					rgb++
+				}
+				break
+			case 4:
+				r++
+				if (r === 255) {
+					rgb++
+				}
+				break
+			case 5:
+				b--
+				if (b === 0) {
+					rgb = 0
+				}
+				break
+		}
+		
+		pixels[off] = r
+		pixels[off + 1] = g
+		pixels[off + 2] = b
+		pixels[off + 3] = 255
+	}
+	
+	ctx.putImageData(id, 0, 0)
+	i++;
+	
+	requestAnimationFrame(animation)
+}
+
+function animationOld () {
+	const nextValue = run(i)
+	
+	for (let j = 3; j >= 0; j--) {
+		const val = (nextValue & (1 << j)) === 0 ? 0 : 255
+		const off = (y * id.width + x) * 4
+		
+		pixels[off] = val
+		pixels[off + 1] = val
+		pixels[off + 2] = val
+		pixels[off + 3] = 255
+		
+		x++
+		if (x >= canvasWidth) {
+			x = 0
+			y++
+		}
+	}
+	
+	ctx.putImageData(id, 0, 0)
+	i++;
+	
+	if (y < canvasHeight) {
+		requestAnimationFrame(animation)
+	}
+}
+
+requestAnimationFrame(animation)
+</script>
+</body>
+</html>
